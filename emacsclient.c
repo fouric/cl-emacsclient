@@ -42,53 +42,24 @@
 #pragma GCC diagnostic ignored "-Wformat-truncation=2"
 #endif
 
-/* True means don't wait for a response from Emacs.  --no-wait.  */
-static bool nowait;
-
-/* True means don't print messages for successful operations.  --quiet.  */
-static bool quiet;
-
-/* True means don't print values returned from emacs. --suppress-output.  */
-static bool suppress_output;
-
-/* True means args are expressions to be evaluated.  --eval.  */
-static bool eval;
-
-/* True means open a new frame.  --create-frame etc.  */
-static bool create_frame;
-
-/* The display on which Emacs should work.  --display.  */
-static char const *display;
-
-/* The alternate display we should try if Emacs does not support display.  */
-static char const *alt_display;
-
-/* The parent window ID, if we are opening a frame via XEmbed.  */
-static char *parent_id;
-
-/* True means open a new Emacs frame on the current terminal.  */
-static bool tty;
-
-/* If non-NULL, the filename of the UNIX socket.  */
-static char const *socket_name;
-
-/* If non-NULL, the filename of the authentication file.  */
-static char const *server_file;
-
-/* If non-NULL, the tramp prefix emacs must use to find the files.  */
-static char const *tramp_prefix;
-
-/* If nonzero, PID of the Emacs server process.  */
-static pid_t emacs_pid;
-
-/* If non-NULL, a string that should form a frame parameter alist to
-   be used for the new frame.  */
-static char const *frame_parameters;
+static bool nowait; // True means don't wait for a response from Emacs.  --no-wait.
+static bool quiet; // True means don't print messages for successful operations.  --quiet.
+static bool suppress_output; // True means don't print values returned from emacs. --suppress-output.
+static bool eval; // True means args are expressions to be evaluated.  --eval.
+static bool create_frame; // True means open a new frame.  --create-frame etc.
+static char const *display; // The display on which Emacs should work.  --display.
+static char const *alt_display; // The alternate display we should try if Emacs does not support display.
+static char *parent_id; // The parent window ID, if we are opening a frame via XEmbed.
+static bool tty; // True means open a new Emacs frame on the current terminal.
+static char const *socket_name; // If non-NULL, the filename of the UNIX socket.
+static char const *server_file; // If non-NULL, the filename of the authentication file.
+static char const *tramp_prefix; // If non-NULL, the tramp prefix emacs must use to find the files.
+static pid_t emacs_pid; // If nonzero, PID of the Emacs server process.
+static char const *frame_parameters; // If non-NULL, a string that should form a frame parameter alist to be used for the new frame.
 
 static _Noreturn void print_help_and_exit(void);
 
-/* Long command-line options.  */
-
+// Long command-line options
 static struct option const longopts[] = {
 	{"no-wait", no_argument, NULL, 'n'},
 	{"quiet", no_argument, NULL, 'q'},
@@ -107,27 +78,20 @@ static struct option const longopts[] = {
 	{"tramp", required_argument, NULL, 'T'},
 	{0, 0, 0, 0}};
 
-/* Short options, in the same order as the corresponding long options.
-   There is no '-p' short option.  */
-static char const shortopts[] = "nqueHVtca:F:"
-	"s:"
-	"f:d:T:";
+// Short options, in the same order as the corresponding long options. There is no '-p' short option
+static char const shortopts[] = "nqueHVtca:F:s:f:d:T:";
 
 /* From sysdep.c */
 #if !defined HAVE_GET_CURRENT_DIR_NAME || defined BROKEN_GET_CURRENT_DIR_NAME
 
 char *get_current_dir_name(void);
 
-/* Return the current working directory.  Returns NULL on errors.
-   Any other returned value must be freed with free.  This is used
-   only when get_current_dir_name is not defined on the system.  */
+// Return the current working directory.  Returns NULL on errors. Any other returned value must be freed with free.  This is used only when get_current_dir_name is not defined on the system.
 char *get_current_dir_name(void) {
-	/* The maximum size of a directory name, including the terminating NUL.
-	   Leave room so that the caller can append a trailing slash.  */
+	// The maximum size of a directory name, including the terminating NUL. Leave room so that the caller can append a trailing slash.
 	ptrdiff_t dirsize_max = min(PTRDIFF_MAX, SIZE_MAX) - 1;
 
-	/* The maximum size of a buffer for a file name, including the
-	   terminating NUL.  This is bounded by PATH_MAX, if available.  */
+	// The maximum size of a buffer for a file name, including the terminating NUL.  This is bounded by PATH_MAX, if available.
 	ptrdiff_t bufsize_max = dirsize_max;
 #ifdef PATH_MAX
 	bufsize_max = min(bufsize_max, PATH_MAX);
@@ -135,9 +99,7 @@ char *get_current_dir_name(void) {
 
 	struct stat dotstat, pwdstat;
 	size_t pwdlen;
-	/* If PWD is accurate, use it instead of calling getcwd.  PWD is
-	   sometimes a nicer name, and using it may avoid a fatal error if a
-	   parent directory is searchable but not readable.  */
+	// If PWD is accurate, use it instead of calling getcwd.  PWD is sometimes a nicer name, and using it may avoid a fatal error if a parent directory is searchable but not readable.
 	char const *pwd = egetenv("PWD");
 	if (pwd && (pwdlen = strnlen(pwd, bufsize_max)) < bufsize_max &&
 		IS_DIRECTORY_SEP(pwd[pwdlen && IS_DEVICE_SEP(pwd[1]) ? 2 : 0]) &&
@@ -161,27 +123,20 @@ char *get_current_dir_name(void) {
 }
 #endif
 
-/* Display a normal or error message.
-   On Windows, use a message box if compiled as a Windows app.  */
+// Display a normal or error message.
 static void message(bool, const char *, ...) ATTRIBUTE_FORMAT_PRINTF(2, 3);
 static void message(bool is_error, const char *format, ...) {
 	va_list args;
-
 	va_start(args, format);
-
 	{
 		FILE *f = is_error ? stderr : stdout;
-
 		vfprintf(f, format, args);
 		fflush(f);
 	}
-
 	va_end(args);
 }
 
-/* Decode the options from argv and argc.
-   The global variable 'optind' will say how many arguments we used up.  */
-
+// Decode the options from argv and argc. The global variable 'optind' will say how many arguments we used up.
 static void decode_options(int argc, char **argv) {
 	tramp_prefix = egetenv("EMACSCLIENT_TRAMP");
 
@@ -189,75 +144,22 @@ static void decode_options(int argc, char **argv) {
 		int opt = getopt_long_only(argc, argv, shortopts, longopts, NULL);
 		if (opt < 0)
 			break;
-
 		switch (opt) {
-		case 0:
-			// If getopt returns 0, then it has already processed a long-named option.  We should do nothing
-			break;
-
-		case 's':
-			socket_name = optarg;
-			break;
-
-		case 'f':
-			server_file = optarg;
-			break;
-
-			/* We used to disallow this argument in w32, but it seems better
-			   to allow it, for the occasional case where the user is
-			   connecting with a w32 client to a server compiled with X11
-			   support.  */
-		case 'd':
-			display = optarg;
-			break;
-
-		case 'n':
-			nowait = true;
-			break;
-
-		case 'e':
-			eval = true;
-			break;
-
-		case 'q':
-			quiet = true;
-			break;
-
-		case 'u':
-			suppress_output = true;
-			break;
-
-		case 'V':
-			message(false, "emacsclient %s\n", PACKAGE_VERSION);
-			exit(EXIT_SUCCESS);
-			break;
-
-		case 't':
-			tty = true;
-			create_frame = true;
-			break;
-
-		case 'c':
-			create_frame = true;
-			break;
-
-		case 'p':
-			parent_id = optarg;
-			create_frame = true;
-			break;
-
-		case 'H':
-			print_help_and_exit();
-			break;
-
-		case 'F':
-			frame_parameters = optarg;
-			break;
-
-		case 'T':
-			tramp_prefix = optarg;
-			break;
-
+		case 0: break; // If getopt returns 0, then it has already processed a long-named option.  We should do nothing
+		case 's': socket_name = optarg; break;
+		case 'f': server_file = optarg; break;
+		case 'd': display = optarg; break;
+		case 'n': nowait = true; break;
+		case 'e': eval = true; break;
+		case 'q': quiet = true; break;
+		case 'u': suppress_output = true; break;
+		case 'V': message(false, "emacsclient %s\n", PACKAGE_VERSION); exit(EXIT_SUCCESS); break;
+		case 't': tty = true; create_frame = true; break;
+		case 'c': create_frame = true; break;
+		case 'p': parent_id = optarg; create_frame = true; break;
+		case 'H': print_help_and_exit(); break;
+		case 'F': frame_parameters = optarg; break;
+		case 'T': tramp_prefix = optarg; break;
 		default:
 			message(true, "Try 'emacsclient --help' for more information\n");
 			exit(EXIT_FAILURE);
@@ -265,17 +167,8 @@ static void decode_options(int argc, char **argv) {
 		}
 	}
 
-	/* If the -c option is used (without -t) and no --display argument
-	   is provided, try $DISPLAY.
-	   Without the -c option, we used to set 'display' to $DISPLAY by
-	   default, but this changed the default behavior and is sometimes
-	   inconvenient.  So we force users to use "--display $DISPLAY" if
-	   they want Emacs to connect to their current display.
-
-	   Some window systems have a notion of default display not
-	   reflected in the DISPLAY variable.  If the user didn't give us an
-	   explicit display, try this platform-specific after trying the
-	   display in DISPLAY (if any).  */
+	// If the -c option is used (without -t) and no --display argument is provided, try $DISPLAY. Without the -c option, we used to set 'display' to $DISPLAY by default, but this changed the default behavior and is sometimes inconvenient.  So we force users to use "--display $DISPLAY" if they want Emacs to connect to their current display.
+	// Some window systems have a notion of default display not reflected in the DISPLAY variable.  If the user didn't give us an explicit display, try this platform-specific after trying the display in DISPLAY (if any).
 	if (create_frame && !tty && !display)
 		display = egetenv("DISPLAY");
 
@@ -294,10 +187,7 @@ static void decode_options(int argc, char **argv) {
 }
 
 static _Noreturn void print_help_and_exit(void) {
-	/* Spaces and tabs are significant in this message; they're chosen so the
-	   message aligns properly both in a tty and in a Windows message box.
-	   Please try to preserve them; otherwise the output is very hard to read
-	   when using emacsclientw.  */
+	// Spaces and tabs are significant in this message; they're chosen so the message aligns properly both in a tty and in a Windows message box. Please try to preserve them; otherwise the output is very hard to read when using emacsclientw.
 	message(
 			false, "Usage: emacsclient [OPTIONS] FILE...\n%s%s%s", "\
 Tell the Emacs server to visit the specified files.\n\
@@ -338,13 +228,14 @@ static void act_on_signals(HSOCKET);
 
 enum { AUTH_KEY_LENGTH = 64 };
 
-static void ock_err_message(const char *function_name)
+static void sock_err_message(const char *function_name) {
 	message(true, "emacsclient: %s: %s\n", function_name, strerror(errno));
 }
 
 // Buffering send - send to socket S the data in *DATA when either the data's last byte is '\n', or the buffer is full (but this shouldn't happen) - otherwise, just buffer
 static void send_to_emacs(HSOCKET s, const char *data) {
 	enum { SEND_BUFFER_SIZE = 4096 };
+	message(false, "emacsclient: sending data over socket: ", data);
 
 	// Buffer to accumulate data to send in TCP connections
 	static char send_buffer[SEND_BUFFER_SIZE + 1];
@@ -378,7 +269,7 @@ static void send_to_emacs(HSOCKET s, const char *data) {
 }
 
 // In STR, insert a & before each &, each space, each newline, and any initial -.  Change spaces to underscores, too, so that the return value never contains a space. Write result to S without mutating string.
-static void quote_argument(HSOCKET s, const char *str) {
+static void quote_send(HSOCKET s, const char *str) {
 	char *copy = malloc(strlen(str) * 2 + 1);
 	char *q = copy;
 	if (*str == '-')
@@ -400,7 +291,7 @@ static void quote_argument(HSOCKET s, const char *str) {
 	free(copy);
 }
 
-// The inverse of quote_argument.  Remove quoting in string STR by modifying the addressed string in place.  Return STR.
+// The inverse of quote_send.  Remove quoting in string STR by modifying the addressed string in place.  Return STR.
 static char *unquote_argument(char *str) {
 	char const *p = str;
 	char *q = str;
@@ -526,11 +417,10 @@ static HSOCKET set_tcp_socket(const char *local_server_file) {
 		return INVALID_SOCKET;
 	}
 
-	/* The cast to 'const char *' is to avoid a compiler warning when
-	   compiling for MS-Windows sockets.  */
+	// The cast to 'const char *' is to avoid a compiler warning when compiling for MS-Windows sockets
 	setsockopt(s, SOL_SOCKET, SO_LINGER, (const char *)&l_arg, sizeof l_arg);
 
-	/* Send the authentication.  */
+	// Send the authentication.
 	auth_string[AUTH_KEY_LENGTH] = '\0';
 
 	send_to_emacs(s, "-auth ");
@@ -540,17 +430,13 @@ static HSOCKET set_tcp_socket(const char *local_server_file) {
 	return s;
 }
 
-/* Return true if PREFIX is a prefix of STRING. */
-static bool strprefix(const char *prefix, const char *string) {
+// does STRING start with PREFIX?
+static bool startswith(const char *prefix, const char *string) {
 	return !strncmp(prefix, string, strlen(prefix));
 }
 
-/* Get tty name and type.  If successful, store the type into
- *TTY_TYPE and the name into *TTY_NAME, and return true.
- Otherwise, fail if NOABORT is zero, or return false if NOABORT.  */
-
-static bool find_tty(const char **tty_type, const char **tty_name,
-					 bool noabort) {
+// Get tty name and type.  If successful, store the type into *TTY_TYPE and the name into *TTY_NAME, and return true. Otherwise, fail if NOABORT is zero, or return false if NOABORT.
+static bool find_tty(const char **tty_type, const char **tty_name, bool noabort) {
 	const char *type = egetenv("TERM");
 	const char *name = ttyname(STDOUT_FILENO);
 
@@ -570,7 +456,7 @@ static bool find_tty(const char **tty_type, const char **tty_name,
 
 	const char *inside_emacs = egetenv("INSIDE_EMACS");
 	if (inside_emacs && strstr(inside_emacs, ",term:") &&
-		strprefix("eterm", type)) {
+		startswith("eterm", type)) {
 		if (noabort)
 			return false;
 		/* This causes nasty, MULTI_KBOARD-related input lockouts. */
@@ -936,63 +822,18 @@ static HSOCKET set_socket() {
 	exit(EXIT_FAILURE);
 }
 
-// Start the emacs daemon and try to connect to it
-static HSOCKET start_daemon_and_retry_set_socket(void) {
-	pid_t dpid;
-	int status;
-
-	dpid = fork();
-
-	if (dpid > 0) {
-		pid_t w = waitpid(dpid, &status, WUNTRACED | WCONTINUED);
-
-		if (w < 0 || !WIFEXITED(status) || WEXITSTATUS(status)) {
-			message(true, "Error: Could not start the Emacs daemon\n");
-			exit(EXIT_FAILURE);
-		}
-
-		/* Try connecting, the daemon should have started by now.  */
-		message(true, "Emacs daemon should have started, trying to connect again\n");
-	} else if (dpid < 0) {
-		fprintf(stderr, "Error: Cannot fork!\n");
-		exit(EXIT_FAILURE);
-	} else {
-		char emacs[] = "emacs";
-		char daemon_option[] = "--daemon";
-		char *d_argv[3];
-		d_argv[0] = emacs;
-		d_argv[1] = daemon_option;
-		d_argv[2] = 0;
-		if (socket_name != NULL) {
-			/* Pass  --daemon=socket_name as argument.  */
-			const char *deq = "--daemon=";
-			char *daemon_arg = malloc(strlen(deq) + strlen(socket_name) + 1);
-			strcpy(stpcpy(daemon_arg, deq), socket_name);
-			d_argv[1] = daemon_arg;
-		}
-		execvp("emacs", d_argv);
-		message(true, "emacsclient: error starting emacs daemon\n");
-		exit(EXIT_FAILURE);
-	}
-
-	HSOCKET emacs_socket = set_socket();
-	if (emacs_socket == INVALID_SOCKET) {
-		message(true,
-				"Error: Cannot connect even after starting the Emacs daemon\n");
-		exit(EXIT_FAILURE);
-	}
-	return emacs_socket;
-}
-
 int main(int argc, char **argv) {
 	int rl = 0;
 	bool skiplf = true;
 	char string[BUFSIZ + 1];
 	int exit_status = EXIT_SUCCESS;
 
-	/* Process options.  */
+
+	/// process options
 	decode_options(argc, argv);
 
+
+	/// prelude to initiating communication
 	if (!(optind < argc || eval || create_frame)) {
 		message(true, "emacsclient: file name or argument required\nTry 'emacsclient --help' for more information\n");
 		exit(EXIT_FAILURE);
@@ -1004,9 +845,13 @@ int main(int argc, char **argv) {
 			kill(grouping, SIGTTIN);
 	}
 
+
+	/// open socket
 	HSOCKET emacs_socket = set_socket();
 	if (emacs_socket == INVALID_SOCKET) {
-		emacs_socket = start_daemon_and_retry_set_socket();
+		message(true, "emacsclient: no socket found to communicate with Emacs. Not attempting to start Emacs in daemon mode.\n");
+		exit(EXIT_FAILURE);
+		//emacs_socket = start_daemon_and_retry_set_socket();
 	}
 
 	char *cwd = get_current_dir_name();
@@ -1015,18 +860,21 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	/* Send over our environment and current directory. */
+
+	/// start communication
+
+	// Send over our environment and current directory
 	if (create_frame) {
 		for (char *const *e = environ; *e; e++) {
 			send_to_emacs(emacs_socket, "-env ");
-			quote_argument(emacs_socket, *e);
+			quote_send(emacs_socket, *e);
 			send_to_emacs(emacs_socket, " ");
 		}
 	}
 	send_to_emacs(emacs_socket, "-dir ");
 	if (tramp_prefix)
-		quote_argument(emacs_socket, tramp_prefix);
-	quote_argument(emacs_socket, cwd);
+		quote_send(emacs_socket, tramp_prefix);
+	quote_send(emacs_socket, cwd);
 	free(cwd);
 	send_to_emacs(emacs_socket, "/");
 	send_to_emacs(emacs_socket, " ");
@@ -1040,19 +888,19 @@ int main(int argc, char **argv) {
 
 	if (display) {
 		send_to_emacs(emacs_socket, "-display ");
-		quote_argument(emacs_socket, display);
+		quote_send(emacs_socket, display);
 		send_to_emacs(emacs_socket, " ");
 	}
 
 	if (parent_id) {
 		send_to_emacs(emacs_socket, "-parent-id ");
-		quote_argument(emacs_socket, parent_id);
+		quote_send(emacs_socket, parent_id);
 		send_to_emacs(emacs_socket, " ");
 	}
 
 	if (frame_parameters && create_frame) {
 		send_to_emacs(emacs_socket, "-frame-parameters ");
-		quote_argument(emacs_socket, frame_parameters);
+		quote_send(emacs_socket, frame_parameters);
 		send_to_emacs(emacs_socket, " ");
 	}
 
@@ -1065,9 +913,9 @@ int main(int argc, char **argv) {
 			init_signals();
 
 			send_to_emacs(emacs_socket, "-tty ");
-			quote_argument(emacs_socket, tty_name);
+			quote_send(emacs_socket, tty_name);
 			send_to_emacs(emacs_socket, " ");
-			quote_argument(emacs_socket, tty_type);
+			quote_send(emacs_socket, tty_type);
 			send_to_emacs(emacs_socket, " ");
 		}
 	}
@@ -1081,7 +929,7 @@ int main(int argc, char **argv) {
 			if (eval) {
 				/* Don't prepend cwd or anything like that.  */
 				send_to_emacs(emacs_socket, "-eval ");
-				quote_argument(emacs_socket, argv[i]);
+				quote_send(emacs_socket, argv[i]);
 				send_to_emacs(emacs_socket, " ");
 				continue;
 			}
@@ -1095,7 +943,7 @@ int main(int argc, char **argv) {
 
 				if (c == 0) {
 					send_to_emacs(emacs_socket, "-position ");
-					quote_argument(emacs_socket, argv[i]);
+					quote_send(emacs_socket, argv[i]);
 					send_to_emacs(emacs_socket, " ");
 					continue;
 				}
@@ -1103,15 +951,15 @@ int main(int argc, char **argv) {
 
 			send_to_emacs(emacs_socket, "-file ");
 			if (tramp_prefix && IS_ABSOLUTE_FILE_NAME(argv[i]))
-				quote_argument(emacs_socket, tramp_prefix);
-			quote_argument(emacs_socket, argv[i]);
+				quote_send(emacs_socket, tramp_prefix);
+			quote_send(emacs_socket, argv[i]);
 			send_to_emacs(emacs_socket, " ");
 		}
 	} else if (eval) {
 		/* Read expressions interactively.  */
 		while (fgets(string, BUFSIZ, stdin)) {
 			send_to_emacs(emacs_socket, "-eval ");
-			quote_argument(emacs_socket, string);
+			quote_send(emacs_socket, string);
 		}
 		send_to_emacs(emacs_socket, " ");
 	}
@@ -1144,10 +992,10 @@ int main(int argc, char **argv) {
 			if (end_p != NULL)
 				*end_p++ = '\0';
 
-			if (strprefix("-emacs-pid ", p)) {
+			if (startswith("-emacs-pid ", p)) {
 				/* -emacs-pid PID: The process id of the Emacs process. */
 				emacs_pid = strtoumax(p + strlen("-emacs-pid"), NULL, 10);
-			} else if (strprefix("-window-system-unsupported ", p)) {
+			} else if (startswith("-window-system-unsupported ", p)) {
 				/* -window-system-unsupported: Emacs was compiled without support
 				   for whatever window system we tried.  Try the alternate
 				   display, or, failing that, try the terminal.  */
@@ -1160,7 +1008,7 @@ int main(int argc, char **argv) {
 				}
 
 				goto retry;
-			} else if (strprefix("-print ", p)) {
+			} else if (startswith("-print ", p)) {
 				/* -print STRING: Print STRING on the terminal. */
 				if (!suppress_output) {
 					char *str = unquote_argument(p + strlen("-print "));
@@ -1168,7 +1016,7 @@ int main(int argc, char **argv) {
 					if (str[0])
 						skiplf = str[strlen(str) - 1] == '\n';
 				}
-			} else if (strprefix("-print-nonl ", p)) {
+			} else if (startswith("-print-nonl ", p)) {
 				/* -print-nonl STRING: Print STRING on the terminal.
 				   Used to continue a preceding -print command.  */
 				if (!suppress_output) {
@@ -1177,7 +1025,7 @@ int main(int argc, char **argv) {
 					if (str[0])
 						skiplf = str[strlen(str) - 1] == '\n';
 				}
-			} else if (strprefix("-error ", p)) {
+			} else if (startswith("-error ", p)) {
 				/* -error DESCRIPTION: Signal an error on the terminal. */
 				char *str = unquote_argument(p + strlen("-error "));
 				if (!skiplf)
@@ -1186,7 +1034,7 @@ int main(int argc, char **argv) {
 				if (str[0])
 					skiplf = str[strlen(str) - 1] == '\n';
 				exit_status = EXIT_FAILURE;
-			} else if (strprefix("-suspend ", p)) {
+			} else if (startswith("-suspend ", p)) {
 				/* -suspend: Suspend this terminal, i.e., stop the process. */
 				if (!skiplf)
 					printf("\n");
