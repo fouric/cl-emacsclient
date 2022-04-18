@@ -280,20 +280,19 @@ static void decode_options(int argc, char **argv) {
 	   display in DISPLAY (if any).  */
 	if (create_frame && !tty && !display)
 		display = egetenv("DISPLAY");
-}
 
-if (!display)
-	display = alt_display;
-alt_display = NULL;
-}
+	if (!display) {
+		display = alt_display;
+		alt_display = NULL;
+	}
 
-/* A null-string display is invalid.  */
-if (display && !display[0])
-	display = NULL;
+	/* A null-string display is invalid.  */
+	if (display && !display[0])
+		display = NULL;
 
-/* If no display is available, new frames are tty frames.  */
-if (create_frame && !display)
-	tty = true;
+	/* If no display is available, new frames are tty frames.  */
+	if (create_frame && !display)
+		tty = true;
 }
 
 static _Noreturn void print_help_and_exit(void) {
@@ -345,10 +344,7 @@ static void ock_err_message(const char *function_name)
 	message(true, "emacsclient: %s: %s\n", function_name, strerror(errno));
 }
 
-/* Send to S the data in *DATA when either
-   - the data's last byte is '\n', or
-   - the buffer is full (but this shouldn't happen)
-   Otherwise, just accumulate the data.  */
+// Buffering send - send to socket S the data in *DATA when either the data's last byte is '\n', or the buffer is full (but this shouldn't happen) - otherwise, just buffer
 static void send_to_emacs(HSOCKET s, const char *data) {
 	enum { SEND_BUFFER_SIZE = 4096 };
 
@@ -372,9 +368,7 @@ static void send_to_emacs(HSOCKET s, const char *data) {
 					message(true, "emacsclient: failed to send %d bytes to socket: %s\n", sblen, strerror(errno));
 					exit(EXIT_FAILURE);
 				}
-				/* Act on signals not requiring communication to Emacs,
-				   but defer action on the others to avoid confusing the
-				   communication currently in progress.  */
+				// Act on signals not requiring communication to Emacs, but defer action on the others to avoid confusing the communication currently in progress
 				act_on_signals(INVALID_SOCKET);
 			}
 			sblen -= sent;
@@ -385,11 +379,7 @@ static void send_to_emacs(HSOCKET s, const char *data) {
 	}
 }
 
-/* In STR, insert a & before each &, each space, each newline, and
-   any initial -.  Change spaces to underscores, too, so that the
-   return value never contains a space.
-
-   Does not change the string.  Outputs the result to S.  */
+// In STR, insert a & before each &, each space, each newline, and any initial -.  Change spaces to underscores, too, so that the return value never contains a space. Write result to S without mutating string.
 static void quote_argument(HSOCKET s, const char *str) {
 	char *copy = malloc(strlen(str) * 2 + 1);
 	char *q = copy;
@@ -412,9 +402,7 @@ static void quote_argument(HSOCKET s, const char *str) {
 	free(copy);
 }
 
-/* The inverse of quote_argument.  Remove quoting in string STR by
-   modifying the addressed string in place.  Return STR.  */
-
+// The inverse of quote_argument.  Remove quoting in string STR by modifying the addressed string in place.  Return STR.
 static char *unquote_argument(char *str) {
 	char const *p = str;
 	char *q = str;
@@ -435,18 +423,12 @@ static char *unquote_argument(char *str) {
 	return str;
 }
 
-/* If the home directory is HOME, and XDG_CONFIG_HOME's value is XDG,
-   return the configuration file with basename CONFIG_FILE.  Fail if
-   the configuration file could not be opened.  */
-
-static FILE *open_config(char const *home, char const *xdg,
-						 char const *config_file) {
+// If the home directory is HOME, and XDG_CONFIG_HOME's value is XDG, return the configuration file with basename CONFIG_FILE.  Fail if the configuration file could not be opened
+static FILE *open_config(char const *home, char const *xdg, char const *config_file) {
 	ptrdiff_t xdgsubdirsize = xdg ? strlen(xdg) + sizeof "/emacs/server/" : 0;
-	ptrdiff_t homesuffixsizemax =
-		max(sizeof "/.config/emacs/server/", sizeof "/.emacs.d/server/");
+	ptrdiff_t homesuffixsizemax = max(sizeof "/.config/emacs/server/", sizeof "/.emacs.d/server/");
 	ptrdiff_t homesubdirsizemax = home ? strlen(home) + homesuffixsizemax : 0;
-	char *configname =
-		malloc(max(xdgsubdirsize, homesubdirsizemax) + strlen(config_file));
+	char *configname = malloc(max(xdgsubdirsize, homesubdirsizemax) + strlen(config_file));
 	FILE *config;
 
 	if (home) {
@@ -466,22 +448,16 @@ static FILE *open_config(char const *home, char const *xdg,
 	return config;
 }
 
-/* Read the information needed to set up a TCP comm channel with
-   the Emacs server: host, port, and authentication string.  */
-
-static bool get_server_config(const char *config_file,
-							  struct sockaddr_in *server,
-							  char *authentication) {
+// Read the information needed to set up a TCP comm channel with the Emacs server: host, port, and authentication string
+static bool get_server_config(const char *config_file, struct sockaddr_in *server, char *authentication) {
 	char dotted[32];
 	char *port;
 	FILE *config;
 
 	if (IS_ABSOLUTE_FILE_NAME(config_file))
 		config = fopen(config_file, "rb");
-	else {
-		char const *xdg = egetenv("XDG_CONFIG_HOME");
-		config = open_config(egetenv("HOME"), xdg, config_file);
-	}
+	else
+		config = open_config(egetenv("HOME"), egetenv("XDG_CONFIG_HOME");, config_file);
 
 	if (!config)
 		return false;
@@ -508,9 +484,7 @@ static bool get_server_config(const char *config_file,
 	return true;
 }
 
-/* Like socket (DOMAIN, TYPE, PROTOCOL), except arrange for the
-   resulting file descriptor to be close-on-exec.  */
-
+// Like socket (DOMAIN, TYPE, PROTOCOL), except arrange for the resulting file descriptor to be close-on-exec
 static HSOCKET cloexec_socket(int domain, int type, int protocol) {
 #ifdef SOCK_CLOEXEC
 	return socket(domain, type | SOCK_CLOEXEC, protocol);
@@ -715,21 +689,16 @@ static void install_handler(int sig, void (*handler)(int),
 #endif
 }
 
-/* Initial installation of signal handlers.  */
-
+// Initial installation of signal handlers
 static void init_signals(void) {
 	install_handler(SIGCONT, handle_sigcont, &got_sigcont);
 	install_handler(SIGTSTP, handle_sigtstp, &got_sigtstp);
 	install_handler(SIGTTOU, handle_sigttou, &got_sigttou);
 	install_handler(SIGWINCH, handle_sigwinch, &got_sigwinch);
-	/* Don't mess with SIGINT and SIGQUIT, as Emacs has no way to
-	   determine which terminal the signal came from.  C-g is a normal
-	   input event on secondary terminals.  */
+	// Don't mess with SIGINT and SIGQUIT, as Emacs has no way to determine which terminal the signal came from.  C-g is a normal input event on secondary terminals
 }
 
-/* Act on delivered tty-related signal SIG that normally has handler
-   HANDLER.  EMACS_SOCKET connects to Emacs.  */
-
+// Act on delivered tty-related signal SIG that normally has handler HANDLER.  EMACS_SOCKET connects to Emacs
 static void act_on_tty_signal(int sig, void (*handler)(int),
 							  HSOCKET emacs_socket) {
 	/* Notify Emacs that we are going to sleep.  Normally the suspend is
@@ -746,9 +715,7 @@ static void act_on_tty_signal(int sig, void (*handler)(int),
 	install_handler(sig, handler, NULL);
 }
 
-/* Act on delivered signals if possible.  If EMACS_SOCKET is valid,
-   use it to communicate to Emacs.  */
-
+// Act on delivered signals if possible.  If EMACS_SOCKET is valid, use it to communicate to Emacs
 static void act_on_signals(HSOCKET emacs_socket) {
 	while (true) {
 		bool took_action = false;
@@ -790,18 +757,10 @@ static void act_on_signals(HSOCKET emacs_socket) {
 	}
 }
 
-/* Create in SOCKNAME (of size SOCKNAMESIZE) a name for a local socket.
-   The first TMPDIRLEN bytes of SOCKNAME are already initialized to be
-   the name of a temporary directory.  Use UID and SERVER_NAME to
-   concoct the name.  Return the total length of the name if successful,
-   -1 if it does not fit (and store a truncated name in that case).
-   Fail if TMPDIRLEN is out of range.  */
-
+// Create in SOCKNAME (of size SOCKNAMESIZE) a name for a local socket. The first TMPDIRLEN bytes of SOCKNAME are already initialized to be the name of a temporary directory.  Use UID and SERVER_NAME to concoct the name.  Return the total length of the name if successful, -1 if it does not fit (and store a truncated name in that case). Fail if TMPDIRLEN is out of range.
 static int local_sockname(char *sockname, int socknamesize, int tmpdirlen,
 						  uintmax_t uid, char const *server_name) {
-	/* If ! (0 <= TMPDIRLEN && TMPDIRLEN < SOCKNAMESIZE) the truncated
-	   temporary directory name is already in SOCKNAME, so nothing more
-	   need be stored.  */
+	// If ! (0 <= TMPDIRLEN && TMPDIRLEN < SOCKNAMESIZE) the truncated temporary directory name is already in SOCKNAME, so nothing more need be stored
 	if (0 <= tmpdirlen) {
 		int remaining = socknamesize - tmpdirlen;
 		if (0 < remaining) {
@@ -814,11 +773,7 @@ static int local_sockname(char *sockname, int socknamesize, int tmpdirlen,
 	return -1;
 }
 
-/* Create a local socket for SERVER_NAME and connect it to Emacs.  If
-   SERVER_NAME is a file name component, the local socket name
-   relative to a well-known location in a temporary directory.
-   Otherwise, the local socket name is SERVER_NAME.  */
-
+// Create a local socket for SERVER_NAME and connect it to Emacs.  If SERVER_NAME is a file name component, the local socket name relative to a well-known location in a temporary directory. Otherwise, the local socket name is SERVER_NAME
 static HSOCKET set_local_socket(char const *server_name) {
 	union {
 		struct sockaddr_un un;
@@ -844,14 +799,6 @@ static HSOCKET set_local_socket(char const *server_name) {
 			if (tmpdir)
 				tmpdirlen = snprintf(sockname, socknamesize, "%s", tmpdir);
 			else {
-#ifdef DARWIN_OS
-#ifndef _CS_DARWIN_USER_TEMP_DIR
-#define _CS_DARWIN_USER_TEMP_DIR 65537
-#endif
-				size_t n = confstr(_CS_DARWIN_USER_TEMP_DIR, sockname, socknamesize);
-				if (0 < n && n < (size_t)-1)
-					tmpdirlen = min(n - 1, socknamesize);
-#endif
 				if (tmpdirlen < 0)
 					tmpdirlen = snprintf(sockname, socknamesize, "/tmp");
 			}
@@ -1112,15 +1059,12 @@ int main(int argc, char **argv) {
 		send_to_emacs(emacs_socket, " ");
 	}
 
-	/* Unless we are certain we don't want to occupy the tty, send our
-	   tty information to Emacs.  For example, in daemon mode Emacs may
-	   need to occupy this tty if no other frame is available.  */
+	// Unless we are certain we don't want to occupy the tty, send our tty information to Emacs.  For example, in daemon mode Emacs may need to occupy this tty if no other frame is available
 	if (create_frame || !eval) {
 		const char *tty_type, *tty_name;
 
 		if (find_tty(&tty_type, &tty_name, !tty)) {
-			/* Install signal handlers before opening a frame on the
-			   current tty.  */
+			// Install signal handlers before opening a frame on the current tty
 			init_signals();
 
 			send_to_emacs(emacs_socket, "-tty ");
