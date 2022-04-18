@@ -348,20 +348,20 @@ static void ock_err_message(const char *function_name)
 static void send_to_emacs(HSOCKET s, const char *data) {
 	enum { SEND_BUFFER_SIZE = 4096 };
 
-	/* Buffer to accumulate data to send in TCP connections.  */
+	// Buffer to accumulate data to send in TCP connections
 	static char send_buffer[SEND_BUFFER_SIZE + 1];
 
-	/* Fill pointer for the send buffer.  */
+	// Fill pointer for the send buffer. Why no initialization?
 	static int sblen;
 
+	// buffering send of data over socket
 	for (ptrdiff_t dlen = strlen(data); dlen != 0;) {
 		int part = min(dlen, SEND_BUFFER_SIZE - sblen);
 		memcpy(&send_buffer[sblen], data, part);
 		data += part;
 		sblen += part;
 
-		if (sblen == SEND_BUFFER_SIZE ||
-			(0 < sblen && send_buffer[sblen - 1] == '\n')) {
+		if (sblen == SEND_BUFFER_SIZE || (0 < sblen && send_buffer[sblen - 1] == '\n')) {
 			int sent;
 			while ((sent = send(s, send_buffer, sblen, 0)) < 0) {
 				if (errno != EINTR) {
