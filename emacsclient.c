@@ -43,9 +43,6 @@
 #pragma GCC diagnostic ignored "-Wformat-truncation=2"
 #endif
 
-/* Name used to invoke this program.  */
-static char const *progname;
-
 /* The first argument to main.  */
 static int main_argc;
 
@@ -280,7 +277,7 @@ static void decode_options(int argc, char **argv) {
 			break;
 
 		default:
-			message(true, "Try '%s --help' for more information\n", progname);
+			message(true, "Try 'emacsclient --help' for more information\n");
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -321,7 +318,7 @@ static _Noreturn void print_help_and_exit(void) {
 	   Please try to preserve them; otherwise the output is very hard to read
 	   when using emacsclientw.  */
 	message(
-			false, "Usage: %s [OPTIONS] FILE...\n%s%s%s", progname, "\
+			false, "Usage: emacsclient [OPTIONS] FILE...\n%s%s%s", "\
 Tell the Emacs server to visit the specified files.\n\
 Every FILE can be either just a FILENAME or [+LINE[:COLUMN]] FILENAME.\n\
 \n\
@@ -397,8 +394,7 @@ static _Noreturn void fail(void) {
 		memcpy(&new_argv[toks], main_argv + optind, extra_args_size);
 
 		execvp(*new_argv, new_argv);
-		message(true, "%s: error executing alternate editor \"%s\"\n", progname,
-				alternate_editor);
+		message(true, "emacsclient: error executing alternate editor \"%s\"\n", alternate_editor);
 	}
 	exit(EXIT_FAILURE);
 }
@@ -408,7 +404,7 @@ static void act_on_signals(HSOCKET);
 enum { AUTH_KEY_LENGTH = 64 };
 
 static void ock_err_message(const char *function_name)
-	message(true, "%s: %s: %s\n", progname, function_name, strerror(errno));
+	message(true, "emacsclient: %s: %s\n", function_name, strerror(errno));
 }
 
 /* Send to S the data in *DATA when either
@@ -435,8 +431,7 @@ static void send_to_emacs(HSOCKET s, const char *data) {
 			int sent;
 			while ((sent = send(s, send_buffer, sblen, 0)) < 0) {
 				if (errno != EINTR) {
-					message(true, "%s: failed to send %d bytes to socket: %s\n", progname,
-							sblen, strerror(errno));
+					message(true, "emacsclient: failed to send %d bytes to socket: %s\n", sblen, strerror(errno));
 					fail();
 				}
 				/* Act on signals not requiring communication to Emacs,
@@ -556,7 +551,7 @@ static bool get_server_config(const char *config_file,
 	if (fgets(dotted, sizeof dotted, config) && (port = strchr(dotted, ':')))
 		*port++ = '\0';
 	else {
-		message(true, "%s: invalid configuration info\n", progname);
+		message(true, "emacsclient: invalid configuration info\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -566,7 +561,7 @@ static bool get_server_config(const char *config_file,
 	server->sin_port = htons(atoi(port));
 
 	if (!fread(authentication, AUTH_KEY_LENGTH, 1, config)) {
-		message(true, "%s: cannot read authentication info\n", progname);
+		message(true, "emacsclient: cannot read authentication info\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -601,8 +596,7 @@ static HSOCKET set_tcp_socket(const char *local_server_file) {
 		return INVALID_SOCKET;
 
 	if (server.in.sin_addr.s_addr != inet_addr("127.0.0.1") && !quiet)
-		message(false, "%s: connected to remote socket at %s\n", progname,
-				inet_ntoa(server.in.sin_addr));
+		message(false, "emacsclient: connected to remote socket at %s\n", inet_ntoa(server.in.sin_addr));
 
 	/* Open up an AF_INET socket.  */
 	HSOCKET s = cloexec_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -653,15 +647,14 @@ static bool find_tty(const char **tty_type, const char **tty_name,
 	if (!name) {
 		if (noabort)
 			return false;
-		message(true, "%s: could not get terminal name\n", progname);
+		message(true, "emacsclient: could not get terminal name\n");
 		fail();
 	}
 
 	if (!type) {
 		if (noabort)
 			return false;
-		message(true, "%s: please set the TERM variable to your terminal type\n",
-				progname);
+		message(true, "emacsclient: please set the TERM variable to your terminal type\n");
 		fail();
 	}
 
@@ -671,10 +664,7 @@ static bool find_tty(const char **tty_type, const char **tty_name,
 		if (noabort)
 			return false;
 		/* This causes nasty, MULTI_KBOARD-related input lockouts. */
-		message(true,
-				("%s: opening a frame in an Emacs term buffer"
-				 " is not supported\n"),
-				progname);
+		message(true, "emacsclient: opening a frame in an Emacs term buffer is not supported\n");
 		fail();
 	}
 
@@ -934,7 +924,7 @@ static HSOCKET set_local_socket(char const *server_name) {
 	}
 
 	if (!(0 <= socknamelen && socknamelen < socknamesize)) {
-		message(true, "%s: socket-name %s... too long\n", progname, sockname);
+		message(true, "emacsclient: socket-name %s... too long\n", sockname);
 		fail();
 	}
 
@@ -959,7 +949,7 @@ static HSOCKET set_local_socket(char const *server_name) {
 				socknamelen = local_sockname(sockname, socknamesize, tmpdirlen,
 											 pw->pw_uid, server_name);
 				if (socknamelen < 0) {
-					message(true, "%s: socket-name %s... too long\n", progname, sockname);
+					message(true, "emacsclient: socket-name %s... too long\n", sockname);
 					exit(EXIT_FAILURE);
 				}
 
@@ -971,11 +961,11 @@ static HSOCKET set_local_socket(char const *server_name) {
 	if (sock_status == 0) {
 		HSOCKET s = cloexec_socket(AF_UNIX, SOCK_STREAM, 0);
 		if (s < 0) {
-			message(true, "%s: socket: %s\n", progname, strerror(errno));
+			message(true, "emacsclient: socket: %s\n", strerror(errno));
 			return INVALID_SOCKET;
 		}
 		if (connect(s, &server.sa, sizeof server.un) != 0) {
-			message(true, "%s: connect: %s\n", progname, strerror(errno));
+			message(true, "emacsclient: connect: %s\n", strerror(errno));
 			CLOSE_SOCKET(s);
 			return INVALID_SOCKET;
 		}
@@ -992,7 +982,7 @@ static HSOCKET set_local_socket(char const *server_name) {
 	}
 
 	if (sock_status < 0)
-		message(true, "%s: Invalid socket owner\n", progname);
+		message(true, "emacsclient: Invalid socket owner\n");
 	else if (sock_status == ENOENT) {
 		if (tmpdir_used) {
 			uintmax_t id = uid;
@@ -1001,24 +991,16 @@ static HSOCKET set_local_socket(char const *server_name) {
 				snprintf(sockdirname, sizeof sockdirname, "/run/user/%" PRIuMAX, id);
 			if (0 <= sockdirnamelen && sockdirnamelen < sizeof sockdirname &&
 				faccessat(AT_FDCWD, sockdirname, X_OK, AT_EACCESS) == 0)
-				message(true,
-						("%s: Should XDG_RUNTIME_DIR='%s' be in the environment?\n"
-						 "%s: (Be careful: XDG_RUNTIME_DIR is security-related.)\n"),
-						progname, sockdirname, progname);
+				message(true, "emacsclient: Should XDG_RUNTIME_DIR='%s' be in the environment?\nemacsclient: (Be careful: XDG_RUNTIME_DIR is security-related.)\n",	sockdirname);
 		}
 
 		/* If there's an alternate editor and the user has requested
 		   --quiet, don't output the warning. */
 		if (!quiet || !alternate_editor) {
-			message(true,
-					("%s: can't find socket; have you started the server?\n"
-					 "%s: To start the server in Emacs,"
-					 " type \"M-x server-start\".\n"),
-					progname, progname);
+			message(true, "emacsclient: can't find socket; have you started the server?\nTo start the server in Emacs, type \"M-x server-start\".\n");
 		}
 	} else
-		message(true, "%s: can't stat %s: %s\n", progname, sockname,
-				strerror(sock_status));
+		message(true, "emacsclient: can't stat %s: %s\n", sockname, strerror(sock_status));
 
 	return INVALID_SOCKET;
 }
@@ -1037,7 +1019,7 @@ static HSOCKET set_socket(bool no_exit_if_error) {
 		s = set_local_socket(socket_name);
 		if (s != INVALID_SOCKET || no_exit_if_error)
 			return s;
-		message(true, "%s: error accessing socket \"%s\"\n", progname, socket_name);
+		message(true, "emacsclient: error accessing socket \"%s\"\n", socket_name);
 		exit(EXIT_FAILURE);
 	}
 
@@ -1050,8 +1032,7 @@ static HSOCKET set_socket(bool no_exit_if_error) {
 		if (s != INVALID_SOCKET || no_exit_if_error)
 			return s;
 
-		message(true, "%s: error accessing server file \"%s\"\n", progname,
-				local_server_file);
+		message(true, "emacsclient: error accessing server file \"%s\"\n", local_server_file);
 		exit(EXIT_FAILURE);
 	}
 
@@ -1067,11 +1048,10 @@ static HSOCKET set_socket(bool no_exit_if_error) {
 
 	/* No implicit or explicit socket, and no alternate editor.  */
 	message(true,
-			"%s: No socket or alternate editor.  Please use:\n\n"
+			"emacsclient: No socket or alternate editor.  Please use:\n\n"
 			"\t--socket-name\n"
 			"\t--server-file      (or environment variable EMACS_SERVER_FILE)\n\
-\t--alternate-editor (or environment variable ALTERNATE_EDITOR)\n",
-			progname);
+\t--alternate-editor (or environment variable ALTERNATE_EDITOR)\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -1112,7 +1092,7 @@ static HSOCKET start_daemon_and_retry_set_socket(void) {
 			d_argv[1] = daemon_arg;
 		}
 		execvp("emacs", d_argv);
-		message(true, "%s: error starting emacs daemon\n", progname);
+		message(true, "emacsclient: error starting emacs daemon\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1126,9 +1106,9 @@ static HSOCKET start_daemon_and_retry_set_socket(void) {
 }
 
 int main(int argc, char **argv) {
-	main_argc = argc;
+	// why are we saving these to global variables? just for convenience?
+	main_argc = argc; // used in `fail` and that's it
 	main_argv = argv;
-	progname = argv[0] ? argv[0] : "emacsclient";
 
 	int rl = 0;
 	bool skiplf = true;
@@ -1139,10 +1119,7 @@ int main(int argc, char **argv) {
 	decode_options(argc, argv);
 
 	if (!(optind < argc || eval || create_frame)) {
-		message(true,
-				("%s: file name or argument required\n"
-				 "Try '%s --help' for more information\n"),
-				progname, progname);
+		message(true, "emacsclient: file name or argument required\nTry 'emacsclient --help' for more information\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1166,7 +1143,7 @@ int main(int argc, char **argv) {
 
 	char *cwd = get_current_dir_name();
 	if (cwd == 0) {
-		message(true, "%s: %s\n", progname, "Cannot get current working directory");
+		message(true, "emacsclient: Cannot get current working directory\n");
 		fail();
 	}
 
