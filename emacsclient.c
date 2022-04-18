@@ -43,12 +43,6 @@
 #pragma GCC diagnostic ignored "-Wformat-truncation=2"
 #endif
 
-/* The first argument to main.  */
-static int main_argc;
-
-/* The second argument to main.  */
-static char *const *main_argv;
-
 /* True means don't wait for a response from Emacs.  --no-wait.  */
 static bool nowait;
 
@@ -357,48 +351,6 @@ Report bugs with M-x report-emacs-bug.\n");
 	exit(EXIT_SUCCESS);
 }
 
-/* Try to run a different command, or --if no alternate editor is
-   defined-- exit with an error code.
-   Uses argv, but gets it from the global variable main_argv.  */
-
-static _Noreturn void fail(void) {
-	if (alternate_editor) {
-		size_t extra_args_size = (main_argc - optind + 1) * sizeof(char *);
-		size_t new_argv_size = extra_args_size;
-		char **new_argv = malloc(new_argv_size);
-		char *s = strdup(alternate_editor);
-		ptrdiff_t toks = 0;
-
-		/* Unpack alternate_editor's space-separated tokens into new_argv.  */
-		for (char *tok = s; tok != NULL && *tok != '\0';) {
-			/* Allocate new token.  */
-			++toks;
-			new_argv = realloc(new_argv, new_argv_size + toks * sizeof(char *));
-
-			/* Skip leading delimiters, and set separator, skipping any
-			   opening quote.  */
-			size_t skip = strspn(tok, " \"");
-			tok += skip;
-			char sep = (skip > 0 && tok[-1] == '"') ? '"' : ' ';
-
-			/* Record start of token.  */
-			new_argv[toks - 1] = tok;
-
-			/* Find end of token and overwrite it with NUL.  */
-			tok = strchr(tok, sep);
-			if (tok != NULL)
-				*tok++ = '\0';
-		}
-
-		/* Append main_argv arguments to new_argv.  */
-		memcpy(&new_argv[toks], main_argv + optind, extra_args_size);
-
-		execvp(*new_argv, new_argv);
-		message(true, "emacsclient: error executing alternate editor \"%s\"\n", alternate_editor);
-	}
-	exit(EXIT_FAILURE);
-}
-
 static void act_on_signals(HSOCKET);
 
 enum { AUTH_KEY_LENGTH = 64 };
@@ -432,7 +384,7 @@ static void send_to_emacs(HSOCKET s, const char *data) {
 			while ((sent = send(s, send_buffer, sblen, 0)) < 0) {
 				if (errno != EINTR) {
 					message(true, "emacsclient: failed to send %d bytes to socket: %s\n", sblen, strerror(errno));
-					fail();
+					exit(EXIT_FAILURE);
 				}
 				/* Act on signals not requiring communication to Emacs,
 				   but defer action on the others to avoid confusing the
@@ -648,14 +600,14 @@ static bool find_tty(const char **tty_type, const char **tty_name,
 		if (noabort)
 			return false;
 		message(true, "emacsclient: could not get terminal name\n");
-		fail();
+		exit(EXIT_FAILURE);
 	}
 
 	if (!type) {
 		if (noabort)
 			return false;
 		message(true, "emacsclient: please set the TERM variable to your terminal type\n");
-		fail();
+		exit(EXIT_FAILURE);
 	}
 
 	const char *inside_emacs = egetenv("INSIDE_EMACS");
@@ -665,7 +617,7 @@ static bool find_tty(const char **tty_type, const char **tty_name,
 			return false;
 		/* This causes nasty, MULTI_KBOARD-related input lockouts. */
 		message(true, "emacsclient: opening a frame in an Emacs term buffer is not supported\n");
-		fail();
+		exit(EXIT_FAILURE);
 	}
 
 	*tty_name = name;
@@ -925,7 +877,7 @@ static HSOCKET set_local_socket(char const *server_name) {
 
 	if (!(0 <= socknamelen && socknamelen < socknamesize)) {
 		message(true, "emacsclient: socket-name %s... too long\n", sockname);
-		fail();
+		exit(EXIT_FAILURE);
 	}
 
 	/* See if the socket exists, and if it's owned by us. */
@@ -1106,10 +1058,6 @@ static HSOCKET start_daemon_and_retry_set_socket(void) {
 }
 
 int main(int argc, char **argv) {
-	// why are we saving these to global variables? just for convenience?
-	main_argc = argc; // used in `fail` and that's it
-	main_argv = argv;
-
 	int rl = 0;
 	bool skiplf = true;
 	char string[BUFSIZ + 1];
@@ -1136,7 +1084,7 @@ int main(int argc, char **argv) {
 	HSOCKET emacs_socket = set_socket(alternate_editor || start_daemon_if_needed);
 	if (emacs_socket == INVALID_SOCKET) {
 		if (!start_daemon_if_needed)
-			fail();
+			exit(EXIT_FAILURE);
 
 		emacs_socket = start_daemon_and_retry_set_socket();
 	}
@@ -1144,7 +1092,7 @@ int main(int argc, char **argv) {
 	char *cwd = get_current_dir_name();
 	if (cwd == 0) {
 		message(true, "emacsclient: Cannot get current working directory\n");
-		fail();
+		exit(EXIT_FAILURE);
 	}
 
 	/* Send over our environment and current directory. */
