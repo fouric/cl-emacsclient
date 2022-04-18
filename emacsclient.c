@@ -70,10 +70,6 @@ static char *parent_id;
 /* True means open a new Emacs frame on the current terminal.  */
 static bool tty;
 
-/* If non-NULL, the name of an editor to fallback to if the server is not
- * running.  --alternate-editor.   */
-static char *alternate_editor;
-
 /* If non-NULL, the filename of the UNIX socket.  */
 static char const *socket_name;
 
@@ -104,7 +100,6 @@ static struct option const longopts[] = {
 	{"tty", no_argument, NULL, 't'},
 	{"nw", no_argument, NULL, 't'},
 	{"create-frame", no_argument, NULL, 'c'},
-	{"alternate-editor", required_argument, NULL, 'a'},
 	{"frame-parameters", required_argument, NULL, 'F'},
 	{"socket-name", required_argument, NULL, 's'},
 	{"server-file", required_argument, NULL, 'f'},
@@ -189,7 +184,6 @@ static void message(bool is_error, const char *format, ...) {
    The global variable 'optind' will say how many arguments we used up.  */
 
 static void decode_options(int argc, char **argv) {
-	alternate_editor = egetenv("ALTERNATE_EDITOR");
 	tramp_prefix = egetenv("EMACSCLIENT_TRAMP");
 
 	while (true) {
@@ -201,10 +195,6 @@ static void decode_options(int argc, char **argv) {
 		case 0:
 			/* If getopt returns 0, then it has already processed a
 			   long-named option.  We should do nothing.  */
-			break;
-
-		case 'a':
-			alternate_editor = optarg;
 			break;
 
 		case 's':
@@ -338,11 +328,7 @@ The following OPTIONS are accepted:\n\
 			"-s SOCKET, --socket-name=SOCKET\n\
 			Set filename of the UNIX socket for communication\n"
 			"-f SERVER, --server-file=SERVER\n\
-			Set filename of the TCP authentication file\n\
--a EDITOR, --alternate-editor=EDITOR\n\
-			Editor to fallback to if the server is not running\n"
-			"			If EDITOR is the empty string, start Emacs in daemon\n\
-			mode and try connecting again\n"
+			Set filename of the TCP authentication file\n"
 			"-T PREFIX, --tramp=PREFIX\n\
 						PREFIX to prepend to filenames sent by emacsclient\n\
 						for locating files remotely via Tramp\n"
@@ -946,9 +932,7 @@ static HSOCKET set_local_socket(char const *server_name) {
 				message(true, "emacsclient: Should XDG_RUNTIME_DIR='%s' be in the environment?\nemacsclient: (Be careful: XDG_RUNTIME_DIR is security-related.)\n",	sockdirname);
 		}
 
-		/* If there's an alternate editor and the user has requested
-		   --quiet, don't output the warning. */
-		if (!quiet || !alternate_editor) {
+		if (!quiet) { // respect --quiet
 			message(true, "emacsclient: can't find socket; have you started the server?\nTo start the server in Emacs, type \"M-x server-start\".\n");
 		}
 	} else
@@ -957,7 +941,7 @@ static HSOCKET set_local_socket(char const *server_name) {
 	return INVALID_SOCKET;
 }
 
-static HSOCKET set_socket(bool no_exit_if_error) {
+static HSOCKET set_socket() {
 	HSOCKET s;
 	const char *local_server_file = server_file;
 
@@ -969,7 +953,7 @@ static HSOCKET set_socket(bool no_exit_if_error) {
 	if (socket_name) {
 		/* Explicit --socket-name argument, or environment variable.  */
 		s = set_local_socket(socket_name);
-		if (s != INVALID_SOCKET || no_exit_if_error)
+		if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
 			return s;
 		message(true, "emacsclient: error accessing socket \"%s\"\n", socket_name);
 		exit(EXIT_FAILURE);
@@ -981,7 +965,7 @@ static HSOCKET set_socket(bool no_exit_if_error) {
 
 	if (local_server_file) {
 		s = set_tcp_socket(local_server_file);
-		if (s != INVALID_SOCKET || no_exit_if_error)
+		if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
 			return s;
 
 		message(true, "emacsclient: error accessing server file \"%s\"\n", local_server_file);
@@ -990,20 +974,19 @@ static HSOCKET set_socket(bool no_exit_if_error) {
 
 	/* Implicit local socket.  */
 	s = set_local_socket("server");
-	if (s != INVALID_SOCKET)
+	if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
 		return s;
 
 	/* Implicit server file.  */
 	s = set_tcp_socket("server");
-	if (s != INVALID_SOCKET || no_exit_if_error)
+	if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
 		return s;
 
-	/* No implicit or explicit socket, and no alternate editor.  */
+	// No implicit or explicit socket
 	message(true,
-			"emacsclient: No socket or alternate editor.  Please use:\n\n"
+			"emacsclient: No socket.  Please use:\n\n"
 			"\t--socket-name\n"
-			"\t--server-file      (or environment variable EMACS_SERVER_FILE)\n\
-\t--alternate-editor (or environment variable ALTERNATE_EDITOR)\n");
+			"\t--server-file      (or environment variable EMACS_SERVER_FILE)\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -1048,7 +1031,7 @@ static HSOCKET start_daemon_and_retry_set_socket(void) {
 		exit(EXIT_FAILURE);
 	}
 
-	HSOCKET emacs_socket = set_socket(true);
+	HSOCKET emacs_socket = set_socket();
 	if (emacs_socket == INVALID_SOCKET) {
 		message(true,
 				"Error: Cannot connect even after starting the Emacs daemon\n");
@@ -1077,15 +1060,8 @@ int main(int argc, char **argv) {
 			kill(grouping, SIGTTIN);
 	}
 
-	/* If alternate_editor is the empty string, start the emacs daemon
-	   in case of failure to connect.  */
-	bool start_daemon_if_needed = alternate_editor && !alternate_editor[0];
-
-	HSOCKET emacs_socket = set_socket(alternate_editor || start_daemon_if_needed);
+	HSOCKET emacs_socket = set_socket();
 	if (emacs_socket == INVALID_SOCKET) {
-		if (!start_daemon_if_needed)
-			exit(EXIT_FAILURE);
-
 		emacs_socket = start_daemon_and_retry_set_socket();
 	}
 
