@@ -14,7 +14,6 @@
 #define INVALID_SOCKET (-1)
 #define HSOCKET int
 #define CLOSE_SOCKET close
-#define INITIALIZE()
 
 #define egetenv(VAR) getenv(VAR)
 
@@ -193,8 +192,7 @@ static void decode_options(int argc, char **argv) {
 
 		switch (opt) {
 		case 0:
-			/* If getopt returns 0, then it has already processed a
-			   long-named option.  We should do nothing.  */
+			// If getopt returns 0, then it has already processed a long-named option.  We should do nothing
 			break;
 
 		case 's':
@@ -786,9 +784,9 @@ static HSOCKET set_local_socket(char const *server_name) {
 	uid_t uid = geteuid();
 	bool tmpdir_used = false;
 
-	if (strchr(server_name, '/') || (ISSLASH('\\') && strchr(server_name, '\\')))
+	if (strchr(server_name, '/') || (ISSLASH('\\') && strchr(server_name, '\\'))) {
 		socknamelen = snprintf(sockname, socknamesize, "%s", server_name);
-	else {
+	} else {
 		/* socket_name is a file name component.  */
 		char const *xdg_runtime_dir = egetenv("XDG_RUNTIME_DIR");
 		if (xdg_runtime_dir)
@@ -892,16 +890,16 @@ static HSOCKET set_socket() {
 	HSOCKET s;
 	const char *local_server_file = server_file;
 
-	INITIALIZE();
-
 	if (!socket_name)
 		socket_name = egetenv("EMACS_SOCKET_NAME");
 
 	if (socket_name) {
 		/* Explicit --socket-name argument, or environment variable.  */
 		s = set_local_socket(socket_name);
-		if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
+		if (s != INVALID_SOCKET) {
+			message(false, "emacsclient: using explicit EMACS_SOCKET_NAME/--socket-name=\"%s\"\n", socket_name);
 			return s;
+		}
 		message(true, "emacsclient: error accessing socket \"%s\"\n", socket_name);
 		exit(EXIT_FAILURE);
 	}
@@ -909,36 +907,36 @@ static HSOCKET set_socket() {
 	/* Explicit --server-file arg or EMACS_SERVER_FILE variable.  */
 	if (!local_server_file)
 		local_server_file = egetenv("EMACS_SERVER_FILE");
-
 	if (local_server_file) {
 		s = set_tcp_socket(local_server_file);
-		if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
+		if (s != INVALID_SOCKET) {
+			message(false, "emacsclient: using explicit EMACS_SERVER_FILE/--server-file=\"%s\"\n", local_server_file);
 			return s;
-
+		}
 		message(true, "emacsclient: error accessing server file \"%s\"\n", local_server_file);
 		exit(EXIT_FAILURE);
 	}
 
 	/* Implicit local socket.  */
 	s = set_local_socket("server");
-	if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
+	if (s != INVALID_SOCKET) {
+		message(false, "emacsclient: using implicit local socket\n");
 		return s;
+	}
 
 	/* Implicit server file.  */
 	s = set_tcp_socket("server");
-	if (s != INVALID_SOCKET) // TODO: boolean value might need to be true/unconditional, depending on behavior
+	if (s != INVALID_SOCKET) {
+		message(false, "emacsclient: using implicit server file\n");
 		return s;
+	}
 
 	// No implicit or explicit socket
-	message(true,
-			"emacsclient: No socket.  Please use:\n\n"
-			"\t--socket-name\n"
-			"\t--server-file      (or environment variable EMACS_SERVER_FILE)\n");
+	message(true, "emacsclient: No socket.  Please use:\n\n\t--socket-name\t\t(or environment variable EMACS_SOCKET_NAME)\n\t--server-file\t\t(or environment variable EMACS_SERVER_FILE)\n");
 	exit(EXIT_FAILURE);
 }
 
-/* Start the emacs daemon and try to connect to it.  */
-
+// Start the emacs daemon and try to connect to it
 static HSOCKET start_daemon_and_retry_set_socket(void) {
 	pid_t dpid;
 	int status;
@@ -954,8 +952,7 @@ static HSOCKET start_daemon_and_retry_set_socket(void) {
 		}
 
 		/* Try connecting, the daemon should have started by now.  */
-		message(true,
-				"Emacs daemon should have started, trying to connect again\n");
+		message(true, "Emacs daemon should have started, trying to connect again\n");
 	} else if (dpid < 0) {
 		fprintf(stderr, "Error: Cannot fork!\n");
 		exit(EXIT_FAILURE);
