@@ -642,14 +642,12 @@ static void act_on_signals(HSOCKET emacs_socket) {
 }
 
 // Create in SOCKNAME (of size SOCKNAMESIZE) a name for a local socket. The first TMPDIRLEN bytes of SOCKNAME are already initialized to be the name of a temporary directory.  Use UID and SERVER_NAME to concoct the name.  Return the total length of the name if successful, -1 if it does not fit (and store a truncated name in that case). Fail if TMPDIRLEN is out of range.
-static int local_sockname(char *sockname, int socknamesize, int tmpdirlen,
-						  uintmax_t uid, char const *server_name) {
+static int local_sockname(char *sockname, int socknamesize, int tmpdirlen, uintmax_t uid, char const *server_name) {
 	// If ! (0 <= TMPDIRLEN && TMPDIRLEN < SOCKNAMESIZE) the truncated temporary directory name is already in SOCKNAME, so nothing more need be stored
 	if (0 <= tmpdirlen) {
 		int remaining = socknamesize - tmpdirlen;
 		if (0 < remaining) {
-			int suffixlen = snprintf(&sockname[tmpdirlen], remaining,
-									 "/emacs%" PRIuMAX "/%s", uid, server_name);
+			int suffixlen = snprintf(&sockname[tmpdirlen], remaining, "/emacs%" PRIuMAX "/%s", uid, server_name);
 			if (0 <= suffixlen && suffixlen < remaining)
 				return tmpdirlen + suffixlen;
 		}
@@ -670,24 +668,23 @@ static HSOCKET set_local_socket(char const *server_name) {
 	uid_t uid = geteuid();
 	bool tmpdir_used = false;
 
+	// wat - when would \ NOT be a slash?
+	// strchr returns a pointer to the first occurence of the search term in the string, or NULL if not found
 	if (strchr(server_name, '/') || (ISSLASH('\\') && strchr(server_name, '\\'))) {
 		socknamelen = snprintf(sockname, socknamesize, "%s", server_name);
 	} else {
 		/* socket_name is a file name component.  */
 		char const *xdg_runtime_dir = egetenv("XDG_RUNTIME_DIR");
-		if (xdg_runtime_dir)
-			socknamelen = snprintf(sockname, socknamesize, "%s/emacs/%s",
-								   xdg_runtime_dir, server_name);
-		else {
+		if (xdg_runtime_dir) {
+			socknamelen = snprintf(sockname, socknamesize, "%s/emacs/%s", xdg_runtime_dir, server_name);
+		} else {
 			char const *tmpdir = egetenv("TMPDIR");
-			if (tmpdir)
+			if (tmpdir) { // if $TMPDIR set, use it
 				tmpdirlen = snprintf(sockname, socknamesize, "%s", tmpdir);
-			else {
-				if (tmpdirlen < 0)
-					tmpdirlen = snprintf(sockname, socknamesize, "/tmp");
+			} else { // if $TMPDIR unset, use /tmp
+				tmpdirlen = snprintf(sockname, socknamesize, "/tmp");
 			}
-			socknamelen =
-				local_sockname(sockname, socknamesize, tmpdirlen, uid, server_name);
+			socknamelen = local_sockname(sockname, socknamesize, tmpdirlen, uid, server_name);
 			tmpdir_used = true;
 		}
 	}
@@ -697,13 +694,10 @@ static HSOCKET set_local_socket(char const *server_name) {
 		exit(EXIT_FAILURE);
 	}
 
-	/* See if the socket exists, and if it's owned by us. */
+	// see if socket exists and owned by us
 	int sock_status = socket_status(sockname, uid);
 	if (sock_status) {
-		/* Failing that, see if LOGNAME or USER exist and differ from
-		   our euid.  If so, look for a socket based on the UID
-		   associated with the name.  This is reminiscent of the logic
-		   that init_editfns uses to set the global Vuser_full_name.  */
+		// Failing that, see if LOGNAME or USER exist and differ from our euid.  If so, look for a socket based on the UID associated with the name.  This is reminiscent of the logic that init_editfns uses to set the global Vuser_full_name.
 
 		char const *user_name = egetenv("LOGNAME");
 
@@ -714,9 +708,8 @@ static HSOCKET set_local_socket(char const *server_name) {
 			struct passwd *pw = getpwnam(user_name);
 
 			if (pw && pw->pw_uid != uid) {
-				/* We're running under su, apparently. */
-				socknamelen = local_sockname(sockname, socknamesize, tmpdirlen,
-											 pw->pw_uid, server_name);
+				// We're running under su, apparently
+				socknamelen = local_sockname(sockname, socknamesize, tmpdirlen, pw->pw_uid, server_name);
 				if (socknamelen < 0) {
 					message(true, "emacsclient: socket-name %s... too long\n", sockname);
 					exit(EXIT_FAILURE);
@@ -756,10 +749,8 @@ static HSOCKET set_local_socket(char const *server_name) {
 		if (tmpdir_used) {
 			uintmax_t id = uid;
 			char sockdirname[socknamesize];
-			int sockdirnamelen =
-				snprintf(sockdirname, sizeof sockdirname, "/run/user/%" PRIuMAX, id);
-			if (0 <= sockdirnamelen && sockdirnamelen < sizeof sockdirname &&
-				faccessat(AT_FDCWD, sockdirname, X_OK, AT_EACCESS) == 0)
+			int sockdirnamelen = snprintf(sockdirname, sizeof sockdirname, "/run/user/%" PRIuMAX, id);
+			if (0 <= sockdirnamelen && sockdirnamelen < sizeof sockdirname && faccessat(AT_FDCWD, sockdirname, X_OK, AT_EACCESS) == 0)
 				message(true, "emacsclient: Should XDG_RUNTIME_DIR='%s' be in the environment?\nemacsclient: (Be careful: XDG_RUNTIME_DIR is security-related.)\n",	sockdirname);
 		}
 
@@ -876,6 +867,7 @@ int main(int argc, char **argv) {
 		quote_send(emacs_socket, tramp_prefix);
 	quote_send(emacs_socket, cwd);
 	free(cwd);
+	// can we merge these two lines?
 	send_to_emacs(emacs_socket, "/");
 	send_to_emacs(emacs_socket, " ");
 
