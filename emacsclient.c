@@ -668,8 +668,9 @@ static HSOCKET set_local_socket(char const *server_name) {
 	uid_t uid = geteuid();
 	bool tmpdir_used = false;
 
-	// wat - when would \ NOT be a slash?
+	// wat - when would \ NOT be a slash? ISSLASH('\\')
 	// strchr returns a pointer to the first occurence of the search term in the string, or NULL if not found
+	// undocumented behaviour: only use the provided server_name as the full path to the socket if there's a slash in it, otherwise use a well-known runtime directory with the given server_name as an identifier in it
 	if (strchr(server_name, '/') || (ISSLASH('\\') && strchr(server_name, '\\'))) {
 		socknamelen = snprintf(sockname, socknamesize, "%s", server_name);
 	} else {
@@ -763,7 +764,7 @@ static HSOCKET set_local_socket(char const *server_name) {
 	return INVALID_SOCKET;
 }
 
-static HSOCKET set_socket() {
+static HSOCKET get_socket() {
 	HSOCKET s;
 	const char *local_server_file = server_file;
 
@@ -771,7 +772,7 @@ static HSOCKET set_socket() {
 		socket_name = egetenv("EMACS_SOCKET_NAME");
 
 	if (socket_name) {
-		/* Explicit --socket-name argument, or environment variable.  */
+		// Explicit --socket-name argument or EMACS_SOCKET_NAME envvar
 		s = set_local_socket(socket_name);
 		if (s != INVALID_SOCKET) {
 			message(false, "emacsclient: using explicit EMACS_SOCKET_NAME/--socket-name=\"%s\"\n", socket_name);
@@ -781,7 +782,7 @@ static HSOCKET set_socket() {
 		exit(EXIT_FAILURE);
 	}
 
-	/* Explicit --server-file arg or EMACS_SERVER_FILE variable.  */
+	// Explicit --server-file arg or EMACS_SERVER_FILE envar
 	if (!local_server_file)
 		local_server_file = egetenv("EMACS_SERVER_FILE");
 	if (local_server_file) {
@@ -794,14 +795,14 @@ static HSOCKET set_socket() {
 		exit(EXIT_FAILURE);
 	}
 
-	/* Implicit local socket.  */
+	// local socket with name "server" in the default runtime directory
 	s = set_local_socket("server");
 	if (s != INVALID_SOCKET) {
 		message(false, "emacsclient: using implicit local socket\n");
 		return s;
 	}
 
-	/* Implicit server file.  */
+	// Implicit server file
 	s = set_tcp_socket("server");
 	if (s != INVALID_SOCKET) {
 		message(false, "emacsclient: using implicit server file\n");
@@ -838,7 +839,7 @@ int main(int argc, char **argv) {
 
 
 	/// open socket
-	HSOCKET emacs_socket = set_socket();
+	HSOCKET emacs_socket = get_socket();
 	if (emacs_socket == INVALID_SOCKET) {
 		message(true, "emacsclient: no socket found to communicate with Emacs. Not attempting to start Emacs in daemon mode.\n");
 		exit(EXIT_FAILURE);
@@ -1009,8 +1010,7 @@ int main(int argc, char **argv) {
 						skiplf = str[strlen(str) - 1] == '\n';
 				}
 			} else if (startswith("-print-nonl ", p)) {
-				/* -print-nonl STRING: Print STRING on the terminal.
-				   Used to continue a preceding -print command.  */
+				// -print-nonl STRING: Print STRING on the terminale Used to continue a preceding -print command.
 				if (!suppress_output) {
 					char *str = unquote_argument(p + strlen("-print-nonl "));
 					printf("%s", str);
