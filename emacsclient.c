@@ -959,14 +959,14 @@ int main(int argc, char **argv) {
 
 	send_to_emacs(emacs_socket, "\n");
 
-	/* Wait for an answer. */
+	// wait for an answer
 	if (!eval && !tty && !nowait && !quiet && 0 <= process_grouping()) {
 		printf("Waiting for Emacs...");
 		skiplf = false;
 	}
 	fflush(stdout);
 
-	/* Now, wait for an answer and print any messages.  */
+	// wait for an answer and print any messages
 	while (exit_status == EXIT_SUCCESS) {
 		do {
 			act_on_signals(emacs_socket);
@@ -978,20 +978,19 @@ int main(int argc, char **argv) {
 
 		string[rl] = '\0';
 
-		/* Loop over all NL-terminated messages.  */
+		// handle messages, which are delimited by newlines
 		char *p = string;
 		for (char *end_p = p; end_p && *end_p != '\0'; p = end_p) {
 			end_p = strchr(p, '\n');
 			if (end_p != NULL)
 				*end_p++ = '\0';
 
+			// in CL, we'll split on space, then do a string-switch on emacs-pid/print/print-nonl/error
 			if (startswith("-emacs-pid ", p)) {
-				/* -emacs-pid PID: The process id of the Emacs process. */
+				// -emacs-pid PID: The process id of the Emacs process
 				emacs_pid = strtoumax(p + strlen("-emacs-pid"), NULL, 10);
 			} else if (startswith("-window-system-unsupported ", p)) {
-				/* -window-system-unsupported: Emacs was compiled without support
-				   for whatever window system we tried.  Try the alternate
-				   display, or, failing that, try the terminal.  */
+				// -window-system-unsupported: Emacs was compiled without support for whatever window system we tried.  Try the alternate display, or, failing that, try the terminal
 				if (alt_display) {
 					display = alt_display;
 					alt_display = NULL;
@@ -999,10 +998,9 @@ int main(int argc, char **argv) {
 					nowait = false;
 					tty = true;
 				}
-
 				goto retry;
 			} else if (startswith("-print ", p)) {
-				/* -print STRING: Print STRING on the terminal. */
+				// -print STRING: Print STRING on the terminal
 				if (!suppress_output) {
 					char *str = unquote_argument(p + strlen("-print "));
 					printf(&"\n%s"[skiplf], str);
@@ -1010,7 +1008,7 @@ int main(int argc, char **argv) {
 						skiplf = str[strlen(str) - 1] == '\n';
 				}
 			} else if (startswith("-print-nonl ", p)) {
-				// -print-nonl STRING: Print STRING on the terminale Used to continue a preceding -print command.
+				// -print-nonl STRING: Print STRING on the terminal. used to continue a preceding -print command
 				if (!suppress_output) {
 					char *str = unquote_argument(p + strlen("-print-nonl "));
 					printf("%s", str);
@@ -1018,7 +1016,7 @@ int main(int argc, char **argv) {
 						skiplf = str[strlen(str) - 1] == '\n';
 				}
 			} else if (startswith("-error ", p)) {
-				/* -error DESCRIPTION: Signal an error on the terminal. */
+				// -error DESCRIPTION: Signal an error on the terminal
 				char *str = unquote_argument(p + strlen("-error "));
 				if (!skiplf)
 					printf("\n");
@@ -1027,13 +1025,13 @@ int main(int argc, char **argv) {
 					skiplf = str[strlen(str) - 1] == '\n';
 				exit_status = EXIT_FAILURE;
 			} else if (startswith("-suspend ", p)) {
-				/* -suspend: Suspend this terminal, i.e., stop the process. */
+				// -suspend: Suspend this terminal, i.e., stop the process
 				if (!skiplf)
 					printf("\n");
 				skiplf = true;
 				kill(0, SIGSTOP);
 			} else {
-				/* Unknown command. */
+				// Unknown command
 				printf(&"\n*ERROR*: Unknown message: %s\n"[skiplf], p);
 				skiplf = true;
 			}
